@@ -1,29 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-
-const STORAGE_KEY = "goalstreak.data.v2";
-
-const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-const loadState = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return { todos: [], blocks: [], todayBlocks: [] };
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return { todos: parsed, blocks: [], todayBlocks: [] };
-    }
-    return {
-      todos: parsed.todos ?? [],
-      blocks: parsed.blocks ?? [],
-      todayBlocks: parsed.todayBlocks ?? []
-    };
-  } catch (error) {
-    console.error("Failed to load data", error);
-    return { todos: [], blocks: [], todayBlocks: [] };
-  }
-};
+import { useEffect, useMemo, useRef, useState } from "react";
+import { dataClient } from "./data/dataClient.js";
+import { EMPTY_STATE } from "./data/state.js";
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -48,17 +25,36 @@ const getLatestTimestamp = (items) => {
 };
 
 function App() {
-  const [state, setState] = useState(loadState);
+  const [state, setState] = useState(EMPTY_STATE);
   const [text, setText] = useState("");
   const [blockName, setBlockName] = useState("");
   const [blockInputs, setBlockInputs] = useState({});
   const [todayBlockInputs, setTodayBlockInputs] = useState({});
+  const stateRef = useRef(state);
 
   const { todos, blocks, todayBlocks } = state;
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.resolve(dataClient.loadState())
+      .then((loaded) => {
+        if (active) {
+          setState(loaded);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load data", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const stats = useMemo(() => {
     const blockTaskCount = todayBlocks.reduce(
@@ -80,184 +76,121 @@ function App() {
     };
   }, [todos, todayBlocks]);
 
-  const handleSubmit = (event) => {
+  const runAction = async (action) => {
+    try {
+      const next = await action(stateRef.current);
+      setState(next);
+      return true;
+    } catch (error) {
+      console.error("Failed to update data", error);
+      return false;
+    }
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const value = text.trim();
     if (!value) {
       return;
     }
 
-    setState((prev) => ({
-      ...prev,
-      todos: [
-        { id: createId(), text: value, createdAt: new Date().toISOString() },
-        ...prev.todos
-      ]
-    }));
-    setText("");
+    const ok = await runAction((current) => dataClient.addTodo(current, value));
+    if (ok) {
+      setText("");
+    }
   };
 
-  const handleDelete = (id) => {
-    setState((prev) => ({
-      ...prev,
-      todos: prev.todos.filter((item) => item.id !== id)
-    }));
+  const handleDelete = async (id) => {
+    await runAction((current) => dataClient.deleteTodo(current, id));
   };
 
-  const handleCreateBlock = (event) => {
+  const handleCreateBlock = async (event) => {
     event.preventDefault();
     const value = blockName.trim();
     if (!value) {
       return;
     }
 
-    setState((prev) => ({
-      ...prev,
-      blocks: [
-        {
-          id: createId(),
-          name: value,
-          tasks: [],
-          createdAt: new Date().toISOString()
-        },
-        ...prev.blocks
-      ]
-    }));
-    setBlockName("");
+    const ok = await runAction((current) =>
+      dataClient.createBlock(current, value)
+    );
+    if (ok) {
+      setBlockName("");
+    }
   };
 
-  const handleAddBlockTask = (event, blockId) => {
+  const handleAddBlockTask = async (event, blockId) => {
     event.preventDefault();
     const value = (blockInputs[blockId] || "").trim();
     if (!value) {
       return;
     }
 
-    setState((prev) => ({
-      ...prev,
-      blocks: prev.blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: [
-                ...block.tasks,
-                {
-                  id: createId(),
-                  text: value,
-                  createdAt: new Date().toISOString()
-                }
-              ]
-            }
-          : block
-      )
-    }));
-    setBlockInputs((prev) => ({ ...prev, [blockId]: "" }));
-  };
-
-  const handleDeleteBlockTask = (blockId, taskId) => {
-    setState((prev) => ({
-      ...prev,
-      blocks: prev.blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: block.tasks.filter((task) => task.id !== taskId)
-            }
-          : block
-      )
-    }));
-  };
-
-  const handleAddBlockToToday = (blockId) => {
-    const block = blocks.find((item) => item.id === blockId);
-    if (!block) {
-      return;
+    const ok = await runAction((current) =>
+      dataClient.addBlockTask(current, blockId, value)
+    );
+    if (ok) {
+      setBlockInputs((prev) => ({ ...prev, [blockId]: "" }));
     }
-
-    const timestamp = new Date().toISOString();
-    const instance = {
-      id: createId(),
-      blockId: block.id,
-      name: block.name,
-      createdAt: timestamp,
-      tasks: block.tasks.map((task) => ({
-        id: createId(),
-        text: task.text,
-        createdAt: timestamp
-      }))
-    };
-
-    setState((prev) => ({
-      ...prev,
-      todayBlocks: [instance, ...prev.todayBlocks]
-    }));
   };
 
-  const handleRemoveBlock = (blockId) => {
-    setState((prev) => ({
-      ...prev,
-      blocks: prev.blocks.filter((block) => block.id !== blockId),
-      todayBlocks: prev.todayBlocks.filter((block) => block.blockId !== blockId)
-    }));
-    setBlockInputs((prev) => {
-      const next = { ...prev };
-      delete next[blockId];
-      return next;
-    });
+  const handleDeleteBlockTask = async (blockId, taskId) => {
+    await runAction((current) =>
+      dataClient.deleteBlockTask(current, blockId, taskId)
+    );
   };
 
-  const handleRemoveTodayBlock = (blockId) => {
-    setState((prev) => ({
-      ...prev,
-      todayBlocks: prev.todayBlocks.filter((block) => block.id !== blockId)
-    }));
-    setTodayBlockInputs((prev) => {
-      const next = { ...prev };
-      delete next[blockId];
-      return next;
-    });
+  const handleAddBlockToToday = async (blockId) => {
+    await runAction((current) =>
+      dataClient.addBlockToToday(current, blockId)
+    );
   };
 
-  const handleAddTodayBlockTask = (event, blockId) => {
+  const handleRemoveBlock = async (blockId) => {
+    const ok = await runAction((current) =>
+      dataClient.deleteBlock(current, blockId)
+    );
+    if (ok) {
+      setBlockInputs((prev) => {
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
+    }
+  };
+
+  const handleRemoveTodayBlock = async (blockId) => {
+    const ok = await runAction((current) =>
+      dataClient.removeTodayBlock(current, blockId)
+    );
+    if (ok) {
+      setTodayBlockInputs((prev) => {
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
+    }
+  };
+
+  const handleAddTodayBlockTask = async (event, blockId) => {
     event.preventDefault();
     const value = (todayBlockInputs[blockId] || "").trim();
     if (!value) {
       return;
     }
 
-    setState((prev) => ({
-      ...prev,
-      todayBlocks: prev.todayBlocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: [
-                ...block.tasks,
-                {
-                  id: createId(),
-                  text: value,
-                  createdAt: new Date().toISOString()
-                }
-              ]
-            }
-          : block
-      )
-    }));
-    setTodayBlockInputs((prev) => ({ ...prev, [blockId]: "" }));
+    const ok = await runAction((current) =>
+      dataClient.addTodayBlockTask(current, blockId, value)
+    );
+    if (ok) {
+      setTodayBlockInputs((prev) => ({ ...prev, [blockId]: "" }));
+    }
   };
 
-  const handleDeleteTodayBlockTask = (blockId, taskId) => {
-    setState((prev) => ({
-      ...prev,
-      todayBlocks: prev.todayBlocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: block.tasks.filter((task) => task.id !== taskId)
-            }
-          : block
-      )
-    }));
+  const handleDeleteTodayBlockTask = async (blockId, taskId) => {
+    await runAction((current) =>
+      dataClient.deleteTodayBlockTask(current, blockId, taskId)
+    );
   };
 
   return (
@@ -267,8 +200,7 @@ function App() {
           <p className="eyebrow">GoalStreak</p>
           <h1>Today&apos;s focus</h1>
           <p className="subtitle">
-            Mix one-off tasks with reusable blocks. Everything saves locally in
-            your browser.
+            Mix one-off tasks with reusable blocks. Local-first, Supabase-ready.
           </p>
         </header>
 

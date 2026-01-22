@@ -15,3 +15,12 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+## Data mode
+
+Local storage is the default. To try Supabase later:
+
+1. Apply the schema in `supabase/schema.sql`.
+2. Install the client: `npm install @supabase/supabase-js`.
+3. Create a client and assign `globalThis.supabase = createClient(...)`.
+4. Set `VITE_DATA_MODE=supabase` in `.env`.
