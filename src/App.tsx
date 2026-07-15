@@ -1,126 +1,240 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import './App.css'
 import AddGoalForm from './components/AddGoalFormPanel'
 import type { CheckIn, Habit, NewHabit } from './types'
 
 const HABITS_KEY = 'goalstreak:v2:habits'
 const CHECKINS_KEY = 'goalstreak:v2:checkins'
-const today = dateKey(new Date())
 
 function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
-function fromKey(key: string) { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d) }
-function move(key: string, days: number) { const date = fromKey(key); date.setDate(date.getDate() + days); return dateKey(date) }
-function daysBetween(a: string, b: string) { return Math.floor((fromKey(b).getTime() - fromKey(a).getTime()) / 86400000) }
-function read<T>(key: string, fallback: T): T { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback } catch { return fallback } }
 
-const seedDate = move(today, -35)
+function fromKey(key: string) {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function move(key: string, days: number) {
+  const date = fromKey(key)
+  date.setDate(date.getDate() + days)
+  return dateKey(date)
+}
+
+function read<T>(key: string, fallback: T): T {
+  try {
+    const value = localStorage.getItem(key)
+    return value ? JSON.parse(value) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+const today = dateKey(new Date())
+const seedDate = move(today, -120)
 const seedHabits: Habit[] = [
-  { id: 'meds', name: 'Take medication', icon: '💊', color: '#2563eb', schedule: 'daily', createdAt: seedDate },
-  { id: 'creatine', name: 'Take creatine', icon: '💧', color: '#0891b2', schedule: 'daily', createdAt: seedDate },
-  { id: 'gym', name: 'Go to the gym', icon: '🏋️', color: '#7c3aed', schedule: 'cycle', activeDays: 2, restDays: 1, createdAt: seedDate },
-  { id: 'read', name: 'Read', icon: '📚', color: '#059669', schedule: 'daily', createdAt: seedDate },
+  { id: 'meds', name: 'Taking medicine', icon: '💊', color: '#2563eb', schedule: 'daily', createdAt: seedDate },
+  { id: 'gym', name: 'Gym days', icon: '🏋️', color: '#7c3aed', schedule: 'cycle', activeDays: 2, restDays: 1, createdAt: seedDate },
+  { id: 'read', name: 'Reading', icon: '📚', color: '#059669', schedule: 'daily', createdAt: seedDate },
+  { id: 'programming', name: 'Programming', icon: '✓', color: '#0891b2', schedule: 'weekly', weeklyTarget: 4, createdAt: seedDate },
 ]
 
-function scheduleText(habit: Habit) {
-  if (habit.schedule === 'daily') return 'Every day'
-  if (habit.schedule === 'weekly') return `${habit.weeklyTarget}× per week`
-  return `${habit.activeDays} days on, ${habit.restDays} day${habit.restDays === 1 ? '' : 's'} rest`
+function formatDate(key: string) {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(fromKey(key))
 }
 
-function isDue(habit: Habit, key: string) {
-  if (key < habit.createdAt) return false
-  if (habit.schedule !== 'cycle') return true
-  const cycle = (habit.activeDays ?? 1) + (habit.restDays ?? 1)
-  return daysBetween(habit.createdAt, key) % cycle < (habit.activeDays ?? 1)
+interface DatePickerProps {
+  value: string
+  onChange: (date: string) => void
+  completedDates: Set<string>
+  color: string
 }
 
-function currentStreak(habit: Habit, lookup: Set<string>) {
-  let key = today
-  let count = 0
-  while (key >= habit.createdAt) {
-    if (!isDue(habit, key)) { key = move(key, -1); continue }
-    if (!lookup.has(`${habit.id}:${key}`)) break
-    count++; key = move(key, -1)
+function DatePicker({ value, onChange, completedDates, color }: DatePickerProps) {
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const selected = fromKey(value)
+    return new Date(selected.getFullYear(), selected.getMonth(), 1)
+  })
+  const year = visibleMonth.getFullYear()
+  const month = visibleMonth.getMonth()
+  const leadingBlanks = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const canMoveForward = year < new Date().getFullYear() || month < new Date().getMonth()
+
+  function changeMonth(amount: number) {
+    setVisibleMonth(new Date(year, month + amount, 1))
   }
-  return count
+
+  return (
+    <div className="date-picker" style={{ '--picker-color': color } as React.CSSProperties}>
+      <div className="picker-heading">
+        <button onClick={() => changeMonth(-1)} type="button" aria-label="Previous month">‹</button>
+        <strong>{new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(visibleMonth)}</strong>
+        <button disabled={!canMoveForward} onClick={() => changeMonth(1)} type="button" aria-label="Next month">›</button>
+      </div>
+      <div className="weekday-row">{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div>
+      <div className="month-grid">
+        {Array.from({ length: leadingBlanks }, (_, index) => <span key={`blank-${index}`} />)}
+        {Array.from({ length: daysInMonth }, (_, index) => {
+          const key = dateKey(new Date(year, month, index + 1))
+          const isFuture = key > today
+          return (
+            <button
+              className={`${key === value ? 'selected' : ''} ${completedDates.has(key) ? 'has-entry' : ''}`}
+              disabled={isFuture}
+              key={key}
+              onClick={() => onChange(key)}
+              type="button"
+            >
+              {index + 1}
+            </button>
+          )
+        })}
+      </div>
+      <div className="picker-shortcuts">
+        <button type="button" onClick={() => { onChange(move(today, -1)); setVisibleMonth(new Date(fromKey(move(today, -1)).getFullYear(), fromKey(move(today, -1)).getMonth(), 1)) }}>Yesterday</button>
+        <button type="button" onClick={() => { onChange(today); setVisibleMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1)) }}>Today</button>
+      </div>
+    </div>
+  )
 }
 
 function App() {
   const [habits, setHabits] = useState<Habit[]>(() => read(HABITS_KEY, seedHabits))
   const [checkIns, setCheckIns] = useState<CheckIn[]>(() => read(CHECKINS_KEY, []))
-  const [selectedDate, setSelectedDate] = useState(today)
-  const [selectedHabitId, setSelectedHabitId] = useState(() => habits[0]?.id ?? '')
-  const [showForm, setShowForm] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null)
+  const [checkInHabitId, setCheckInHabitId] = useState<string | null>(null)
+  const [checkInDate, setCheckInDate] = useState(today)
+  const [note, setNote] = useState('')
+  const [showGoalForm, setShowGoalForm] = useState(false)
 
   useEffect(() => localStorage.setItem(HABITS_KEY, JSON.stringify(habits)), [habits])
   useEffect(() => localStorage.setItem(CHECKINS_KEY, JSON.stringify(checkIns)), [checkIns])
 
-  const lookup = useMemo(() => new Set(checkIns.map((item) => `${item.habitId}:${item.date}`)), [checkIns])
-  const selectedHabit = habits.find((item) => item.id === selectedHabitId) ?? habits[0]
-  const calendarDays = useMemo(() => Array.from({ length: 98 }, (_, i) => move(today, i - 97)), [])
-  const dayHabits = habits.filter((habit) => habit.createdAt <= selectedDate)
-  const dueToday = habits.filter((habit) => isDue(habit, today))
-  const doneToday = dueToday.filter((habit) => lookup.has(`${habit.id}:${today}`)).length
-  const totalCheckIns = selectedHabit ? checkIns.filter((item) => item.habitId === selectedHabit.id).length : 0
+  const selectedHabit = habits.find((habit) => habit.id === selectedHabitId)
+  const checkInHabit = habits.find((habit) => habit.id === checkInHabitId)
+  const calendarDays = useMemo(() => Array.from({ length: 371 }, (_, index) => move(today, index - 370)), [])
+  const entries = useMemo(
+    () => new Map(checkIns.map((entry) => [`${entry.habitId}:${entry.date}`, entry])),
+    [checkIns],
+  )
 
-  function toggle(habitId: string, key = selectedDate) {
-    const token = `${habitId}:${key}`
-    setCheckIns((current) => lookup.has(token)
-      ? current.filter((item) => `${item.habitId}:${item.date}` !== token)
-      : [...current, { habitId, date: key, completedAt: new Date().toISOString() }])
+  function openCheckIn(habit: Habit, date = today) {
+    const existing = entries.get(`${habit.id}:${date}`)
+    setCheckInHabitId(habit.id)
+    setCheckInDate(date)
+    setNote(existing?.note ?? '')
   }
+
+  function saveCheckIn(event: FormEvent) {
+    event.preventDefault()
+    if (!checkInHabitId || !checkInDate) return
+
+    setCheckIns((current) => [
+      ...current.filter((entry) => !(entry.habitId === checkInHabitId && entry.date === checkInDate)),
+      { habitId: checkInHabitId, date: checkInDate, note: note.trim(), completedAt: new Date().toISOString() },
+    ])
+    setSelectedHabitId(checkInHabitId)
+    setCheckInHabitId(null)
+  }
+
+  function removeCheckIn() {
+    if (!checkInHabitId) return
+    setCheckIns((current) => current.filter((entry) => !(entry.habitId === checkInHabitId && entry.date === checkInDate)))
+    setCheckInHabitId(null)
+  }
+
   function addHabit(input: NewHabit) {
     const habit = { ...input, id: crypto.randomUUID(), createdAt: today }
-    setHabits((current) => [...current, habit]); setSelectedHabitId(habit.id); setShowForm(false)
+    setHabits((current) => [...current, habit])
+    setShowGoalForm(false)
   }
-  function deleteHabit() {
-    if (!selectedHabit || !window.confirm(`Delete “${selectedHabit.name}” and its history?`)) return
-    setHabits((current) => current.filter((item) => item.id !== selectedHabit.id))
-    setCheckIns((current) => current.filter((item) => item.habitId !== selectedHabit.id))
-    setSelectedHabitId(habits.find((item) => item.id !== selectedHabit.id)?.id ?? '')
-    setMenuOpen(false)
-  }
-
-  const dateTitle = selectedDate === today ? 'Today' : new Intl.DateTimeFormat('en', { weekday: 'long' }).format(fromKey(selectedDate))
-  const dateSubtitle = new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(fromKey(selectedDate))
 
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">G</div><span>GoalStreak</span></div>
-        <nav>
-          <button className="nav-item active"><span>⌂</span>Today</button>
-          <a className="nav-item" href="#history"><span>▦</span>History</a>
-        </nav>
-        <div className="streak-nav">
-          <div className="nav-label"><span>My streaks</span><button onClick={() => setShowForm(true)} aria-label="Add streak">+</button></div>
-          {habits.map((habit) => <button key={habit.id} className={`habit-nav ${selectedHabitId === habit.id ? 'active' : ''}`} onClick={() => { setSelectedHabitId(habit.id); document.querySelector('#history')?.scrollIntoView({ behavior: 'smooth' }) }}><span className="habit-dot" style={{ background: habit.color }} />{habit.name}</button>)}
+    <main className="page-shell">
+      <header className="page-header">
+        <div className="brand-mark">G</div>
+        <div><h1>GoalStreak</h1><p>A simple record of showing up.</p></div>
+      </header>
+
+      <section className="calendar-section" aria-labelledby="calendar-title">
+        <div className="section-title">
+          <div>
+            <p className="eyebrow">Activity</p>
+            <h2 id="calendar-title">{selectedHabit ? selectedHabit.name : 'Calendar'}</h2>
+          </div>
+          {selectedHabit && <span className="selected-key"><i style={{ background: selectedHabit.color }} />Completed days</span>}
         </div>
-        <div className="profile"><div className="avatar">MA</div><div><strong>My account</strong><span>Stored on this device</span></div></div>
-      </aside>
 
-      <main className="main">
-        <header className="mobile-header"><div className="brand"><div className="brand-mark">G</div><span>GoalStreak</span></div><button onClick={() => setShowForm(true)}>＋</button></header>
-        <section className="topbar">
-          <div><p className="eyebrow">Your daily check-in</p><h1>{dateTitle}</h1><p>{dateSubtitle}</p></div>
-          <div className="date-actions"><button className="round-button" onClick={() => setSelectedDate(move(selectedDate, -1))}>‹</button><button className="today-button" onClick={() => setSelectedDate(today)}>Today</button><button className="round-button" disabled={selectedDate >= today} onClick={() => setSelectedDate(move(selectedDate, 1))}>›</button></div>
-        </section>
+        <div className={`calendar-panel ${selectedHabit ? '' : 'calendar-empty'}`}>
+          {selectedHabit ? (
+            <>
+              <div className="month-labels"><span>1 year ago</span><span>Today</span></div>
+              <div className="heatmap-scroll">
+                <div className="heatmap" aria-label={`${selectedHabit.name} activity over the last year`}>
+                  {calendarDays.map((key) => {
+                    const entry = entries.get(`${selectedHabit.id}:${key}`)
+                    const tooltip = entry
+                      ? `${formatDate(key)}${entry.note ? ` — ${entry.note}` : ' — Completed'}`
+                      : `${formatDate(key)} — No entry`
+                    return (
+                      <button
+                        aria-label={tooltip}
+                        className={`heat-cell ${entry ? 'checked' : ''}`}
+                        data-tooltip={tooltip}
+                        key={key}
+                        onClick={() => openCheckIn(selectedHabit, key)}
+                        style={{ '--goal-color': selectedHabit.color } as React.CSSProperties}
+                        type="button"
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+              <p className="calendar-hint">Hover to see notes · Select any day to add or edit an entry</p>
+            </>
+          ) : (
+            <div className="empty-message">
+              <div className="empty-grid" aria-hidden="true">{Array.from({ length: 70 }, (_, i) => <i key={i} />)}</div>
+              <p>Select a goal below to see its activity.</p>
+            </div>
+          )}
+        </div>
+      </section>
 
-        <section className="progress-card"><div className="progress-copy"><div className="progress-ring" style={{ '--progress': `${dueToday.length ? (doneToday / dueToday.length) * 360 : 0}deg` } as React.CSSProperties}><span>{doneToday}/{dueToday.length}</span></div><div><h2>{doneToday === dueToday.length && dueToday.length ? 'All done for today!' : 'Keep your momentum going'}</h2><p>{dueToday.length - doneToday} {dueToday.length - doneToday === 1 ? 'habit' : 'habits'} left today</p></div></div><div className="week-pips">{Array.from({ length: 7 }, (_, i) => move(today, i - 6)).map((key) => { const due = habits.filter((h) => isDue(h, key)); const done = due.filter((h) => lookup.has(`${h.id}:${key}`)).length; return <div key={key}><span>{new Intl.DateTimeFormat('en', { weekday: 'narrow' }).format(fromKey(key))}</span><i className={done === due.length && due.length ? 'complete' : done ? 'partial' : ''}>{fromKey(key).getDate()}</i></div> })}</div></section>
+      <section className="goals-section" aria-labelledby="goals-title">
+        <div className="section-title goals-title">
+          <div><p className="eyebrow">Your list</p><h2 id="goals-title">Goals</h2></div>
+          <button className="text-button" onClick={() => setShowGoalForm(true)} type="button">＋ New goal</button>
+        </div>
+        <div className="goal-list">
+          {habits.map((habit) => (
+            <div className={`goal-row ${selectedHabitId === habit.id ? 'selected' : ''}`} key={habit.id}>
+              <button className="goal-select" onClick={() => setSelectedHabitId(habit.id)} type="button">
+                <span className="goal-icon" style={{ background: `${habit.color}16`, color: habit.color }}>{habit.icon}</span>
+                <span>{habit.name}</span>
+              </button>
+              <button className="add-entry" onClick={() => openCheckIn(habit)} aria-label={`Add ${habit.name} entry`} type="button">＋</button>
+            </div>
+          ))}
+        </div>
+      </section>
 
-        <section className="today-section"><div className="section-heading"><div><h2>Your streaks</h2><p>Small actions, done consistently.</p></div><button className="button primary" onClick={() => setShowForm(true)}>＋ Add streak</button></div>
-          <div className="habit-list">{dayHabits.map((habit) => { const done = lookup.has(`${habit.id}:${selectedDate}`); const due = isDue(habit, selectedDate); return <article className={`habit-card ${done ? 'done' : ''}`} key={habit.id}><button className="check-button" style={{ '--habit-color': habit.color } as React.CSSProperties} onClick={() => toggle(habit.id)} aria-label={`Mark ${habit.name} ${done ? 'incomplete' : 'complete'}`}>{done ? '✓' : ''}</button><div className="habit-icon" style={{ background: `${habit.color}16`, color: habit.color }}>{habit.icon}</div><div className="habit-info"><h3>{habit.name}</h3><p>{due ? scheduleText(habit) : 'Rest day'}</p></div><div className="streak-count"><strong>{currentStreak(habit, lookup)}</strong><span>day streak</span></div></article> })}</div>
-        </section>
+      {checkInHabit && (
+        <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setCheckInHabitId(null)}>
+          <form className="entry-modal" onSubmit={saveCheckIn}>
+            <div className="modal-heading"><div><p className="eyebrow">Check in</p><h2>{checkInHabit.name}</h2></div><button className="close-button" type="button" onClick={() => setCheckInHabitId(null)}>×</button></div>
+            <div className="entry-form-body">
+              <div className="field"><span>Date</span><DatePicker key={checkInHabit.id} value={checkInDate} color={checkInHabit.color} completedDates={new Set(checkIns.filter((entry) => entry.habitId === checkInHabit.id).map((entry) => entry.date))} onChange={(date) => { setCheckInDate(date); setNote(entries.get(`${checkInHabit.id}:${date}`)?.note ?? '') }} /></div>
+              <label className="field notes-field"><span>Notes</span><textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="Bench press — 3 × 8 at 135 lb&#10;Squats — 3 × 10 at 185 lb&#10;Incline dumbbell press — 3 × 10" /></label>
+            </div>
+            <div className="modal-actions">{entries.has(`${checkInHabit.id}:${checkInDate}`) && <button className="button danger" onClick={removeCheckIn} type="button">Remove entry</button>}<span /><button className="button secondary" onClick={() => setCheckInHabitId(null)} type="button">Cancel</button><button className="button primary" type="submit">Save check-in</button></div>
+          </form>
+        </div>
+      )}
 
-        <section className="history-section" id="history"><div className="section-heading"><div><p className="eyebrow">Activity</p><h2>Your consistency</h2></div>{selectedHabit && <div className="history-controls"><select value={selectedHabit.id} onChange={(e) => setSelectedHabitId(e.target.value)}>{habits.map((h) => <option value={h.id} key={h.id}>{h.icon} {h.name}</option>)}</select><div className="menu-wrap"><button className="round-button" onClick={() => setMenuOpen(!menuOpen)}>•••</button>{menuOpen && <button className="delete-menu" onClick={deleteHabit}>Delete streak</button>}</div></div>}</div>
-          {selectedHabit ? <div className="calendar-card"><div className="calendar-stats"><div><strong>{currentStreak(selectedHabit, lookup)}</strong><span>Current streak</span></div><div><strong>{totalCheckIns}</strong><span>Total check-ins</span></div><div><strong>{scheduleText(selectedHabit)}</strong><span>Schedule</span></div></div><div className="heatmap-wrap"><div className="heatmap" aria-label="14 week activity calendar">{calendarDays.map((key) => { const done = lookup.has(`${selectedHabit.id}:${key}`); const due = isDue(selectedHabit, key); return <button key={key} title={`${key}: ${done ? 'completed' : due ? 'not completed' : 'rest day'}`} onClick={() => toggle(selectedHabit.id, key)} className={`heat-cell ${done ? 'checked' : ''} ${!due ? 'rest' : ''}`} style={{ '--habit-color': selectedHabit.color } as React.CSSProperties} /> })}</div></div><div className="calendar-legend"><span>14 weeks ago</span><span><i /> Not done <i className="legend-done" style={{ background: selectedHabit.color }} /> Done</span><span>Today</span></div></div> : <div className="empty-card">Create your first streak to start tracking.</div>}
-        </section>
-      </main>
-      {showForm && <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setShowForm(false)}><div className="modal"><AddGoalForm onAdd={addHabit} onCancel={() => setShowForm(false)} /></div></div>}
-    </div>
+      {showGoalForm && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowGoalForm(false)}><div className="goal-modal"><AddGoalForm onAdd={addHabit} onCancel={() => setShowGoalForm(false)} /></div></div>}
+    </main>
   )
 }
 

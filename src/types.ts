@@ -15,6 +15,7 @@ export interface Habit {
 export interface CheckIn {
   habitId: string
   date: string
+  note?: string
   completedAt: string
 }
 
