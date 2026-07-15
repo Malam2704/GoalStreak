@@ -136,7 +136,7 @@
 .goal-row:hover { border-color: #cbd3df; transform: translateY(-1px); box-shadow: 0 7px 20px #1720330a; }
 .goal-row.selected { border-color: #93b4fb; box-shadow: 0 0 0 3px #dbeafe; }
 .goal-select { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 0; color: var(--ink); background: transparent; font-weight: 600; text-align: left; }
-.goal-icon { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; }
+.goal-color { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; }
 .add-entry { border: 0; border-left: 1px solid var(--border); background: #fbfcfe; color: #758197; font-size: 1.25rem; }
 .add-entry:hover { color: var(--blue); background: #eff6ff; }
 
@@ -152,7 +152,8 @@
 .field input, .field select, .field textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--ink); background: white; resize: vertical; }
 .field textarea { line-height: 1.55; }
 .entry-form-body { display: grid; grid-template-columns: minmax(310px, .85fr) minmax(330px, 1.15fr); gap: 28px; align-items: stretch; }
-.notes-field textarea { min-height: 100%; resize: none; }
+.notes-field { grid-template-rows: auto 1fr; }
+.notes-field textarea { height: 100%; min-height: 0; resize: none; }
 .date-picker { padding: 15px; border: 1px solid var(--border); border-radius: 13px; background: #fbfcfe; }
 .picker-heading { display: grid; grid-template-columns: 32px 1fr 32px; align-items: center; margin-bottom: 13px; }
 .picker-heading strong { text-align: center; color: var(--ink); font: 700 .84rem Manrope, sans-serif; }
@@ -178,11 +179,8 @@
 .button.danger { color: #dc2626; border-color: #fecaca; background: #fff; }
 .habit-form { padding: 26px; display: grid; gap: 18px; }
 .choice-row { display: flex; flex-wrap: wrap; gap: 9px; }
-.icon-choice { width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
-.icon-choice.selected { border-color: var(--blue); background: #eff6ff; }
 .color-choice { width: 27px; height: 27px; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 0 1px var(--border); }
 .color-choice.selected { box-shadow: 0 0 0 2px white, 0 0 0 4px #b9c4d6; }
-.split-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-actions { justify-content: flex-end; }
 
 @media (max-width: 650px) {
