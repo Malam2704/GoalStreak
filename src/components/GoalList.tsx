@@ -1,3 +1,4 @@
+import { Box, Button, IconButton, Paper, Stack, Typography } from '@mui/material'
 import type { Habit } from '../types'
 
 interface GoalListProps {
@@ -8,25 +9,25 @@ interface GoalListProps {
   onSelectGoal: (habitId: string) => void
 }
 
-export default function GoalList({ habits, selectedHabitId, onAddGoal, onAddEntry, onSelectGoal }: GoalListProps) {
+export default function GoalList(props: GoalListProps) {
   return (
     <section className="goals-section" aria-labelledby="goals-title">
-      <div className="section-title goals-title">
-        <div><p className="eyebrow">Your list</p><h2 id="goals-title">Goals</h2></div>
-        <button className="text-button" onClick={onAddGoal} type="button">＋ New goal</button>
-      </div>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'end', mb: 1.5 }}>
+        <div><Typography color="primary" variant="overline">Your list</Typography><Typography id="goals-title" variant="h5" sx={{ fontWeight: 700 }}>Goals</Typography></div>
+        <Button onClick={props.onAddGoal}>+ New goal</Button>
+      </Stack>
 
-      <div className="goal-list">
-        {habits.map((habit) => (
-          <div className={`goal-row ${selectedHabitId === habit.id ? 'selected' : ''}`} key={habit.id}>
-            <button className="goal-select" onClick={() => onSelectGoal(habit.id)} type="button">
-              <span className="goal-color" style={{ background: habit.color }} />
-              <span>{habit.name}</span>
-            </button>
-            <button className="add-entry" onClick={() => onAddEntry(habit)} aria-label={`Add ${habit.name} entry`} type="button">＋</button>
-          </div>
+      <Stack spacing={1}>
+        {props.habits.map((habit) => (
+          <Paper key={habit.id} variant="outlined" sx={{ display: 'flex', overflow: 'hidden', borderColor: props.selectedHabitId === habit.id ? 'primary.main' : 'divider' }}>
+            <Button fullWidth color="inherit" onClick={() => props.onSelectGoal(habit.id)} sx={{ justifyContent: 'flex-start', gap: 1.5, px: 2, py: 1.5 }}>
+              <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: habit.color }} />
+              {habit.name}
+            </Button>
+            <IconButton onClick={() => props.onAddEntry(habit)} aria-label={`Add ${habit.name} entry`} sx={{ borderLeft: '1px solid', borderColor: 'divider', borderRadius: 0, px: 2 }}>+</IconButton>
+          </Paper>
         ))}
-      </div>
+      </Stack>
     </section>
   )
 }

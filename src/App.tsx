@@ -82,12 +82,6 @@ function App() {
     setShowGoalForm(false)
   }
 
-  const completedDates = new Set(
-    checkIns
-      .filter((entry) => entry.habitId === checkInHabitId)
-      .map((entry) => entry.date),
-  )
-
   return (
     <main className="page-shell">
       <header className="page-header">
@@ -111,7 +105,6 @@ function App() {
 
       {checkInHabit && (
         <CheckInModal
-          completedDates={completedDates}
           date={checkInDate}
           habit={checkInHabit}
           hasEntry={entries.has(`${checkInHabit.id}:${checkInDate}`)}
@@ -125,11 +118,7 @@ function App() {
       )}
 
       {showGoalForm && (
-        <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowGoalForm(false)}>
-          <div className="goal-modal">
-            <AddGoalForm onAdd={addHabit} onCancel={() => setShowGoalForm(false)} />
-          </div>
-        </div>
+        <AddGoalForm onAdd={addHabit} onCancel={() => setShowGoalForm(false)} />
       )}
     </main>
   )
