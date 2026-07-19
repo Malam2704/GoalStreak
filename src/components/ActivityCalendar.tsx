@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import type { CSSProperties } from 'react'
+import { cloneElement } from 'react'
+import { ActivityCalendar as CalendarHeatmap } from 'react-activity-calendar'
 import type { CheckIn, Habit } from '../types'
 import { formatDate, moveDate, today } from '../utils/date'
 
@@ -9,11 +9,23 @@ interface ActivityCalendarProps {
   onSelectDate: (habit: Habit, date: string) => void
 }
 
+function calendarData(habitId: string, entries: Map<string, CheckIn>) {
+  const start = moveDate(today, -364)
+  const days = new Map([
+    [start, { date: start, count: 0, level: 0 }],
+    [today, { date: today, count: 0, level: 0 }],
+  ])
+
+  for (const entry of entries.values()) {
+    if (entry.habitId === habitId && entry.date >= start && entry.date <= today) {
+      days.set(entry.date, { date: entry.date, count: 1, level: 1 })
+    }
+  }
+
+  return Array.from(days.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
 export default function ActivityCalendar({ selectedHabit, entries, onSelectDate }: ActivityCalendarProps) {
-  const calendarDays = useMemo(
-    () => Array.from({ length: 371 }, (_, index) => moveDate(today, index - 370)),
-    [],
-  )
 
   return (
     <section className="calendar-section" aria-labelledby="calendar-title">
@@ -22,49 +34,31 @@ export default function ActivityCalendar({ selectedHabit, entries, onSelectDate 
           <p className="eyebrow">Activity</p>
           <h2 id="calendar-title">{selectedHabit ? selectedHabit.name : 'Calendar'}</h2>
         </div>
-        {selectedHabit && (
-          <span className="selected-key">
-            <i style={{ background: selectedHabit.color }} />
-            Completed days
-          </span>
-        )}
       </div>
 
       <div className={`calendar-panel ${selectedHabit ? '' : 'calendar-empty'}`}>
         {selectedHabit ? (
           <>
-            <div className="month-labels"><span>1 year ago</span><span>Today</span></div>
-            <div className="heatmap-scroll">
-              <div className="heatmap" aria-label={`${selectedHabit.name} activity over the last year`}>
-                {calendarDays.map((date) => {
-                  const entry = entries.get(`${selectedHabit.id}:${date}`)
-                  const tooltip = entry
-                    ? `${formatDate(date)}${entry.note ? ` — ${entry.note}` : ' — Completed'}`
-                    : `${formatDate(date)} — No entry`
-
-                  return (
-                    <button
-                      aria-label={tooltip}
-                      className={`heat-cell ${entry ? 'checked' : ''}`}
-                      data-tooltip={tooltip}
-                      key={date}
-                      onClick={() => onSelectDate(selectedHabit, date)}
-                      style={{ '--goal-color': selectedHabit.color } as CSSProperties}
-                      type="button"
-                    />
-                  )
-                })}
-              </div>
-            </div>
+            <CalendarHeatmap
+              blockMargin={5}
+              blockRadius={3}
+              blockSize={13}
+              colorScheme="light"
+              data={calendarData(selectedHabit.id, entries)}
+              maxLevel={1}
+              renderBlock={(block, day) => cloneElement(block, {
+                'aria-label': `${formatDate(day.date)} — ${day.count ? 'Completed' : 'No entry'}`,
+                onClick: () => onSelectDate(selectedHabit, day.date),
+                style: { cursor: 'pointer' },
+              })}
+              showColorLegend={false}
+              showTotalCount={false}
+              theme={{ light: ['#edf0f4', selectedHabit.color] }}
+            />
             <p className="calendar-hint">Select any day to add or edit an entry</p>
           </>
         ) : (
-          <div className="empty-message">
-            <div className="empty-grid" aria-hidden="true">
-              {Array.from({ length: 70 }, (_, index) => <i key={index} />)}
-            </div>
-            <p>Select a goal below to see its activity.</p>
-          </div>
+          <p className="empty-message">Select a goal to see its activity.</p>
         )}
       </div>
     </section>

@@ -59,16 +59,6 @@
   font-weight: 700;
 }
 
-.selected-key {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #748096;
-  font-size: .72rem;
-}
-
-.selected-key i { width: 10px; height: 10px; border-radius: 3px; }
-
 .calendar-panel {
   min-height: 235px;
   padding: 25px;
@@ -78,68 +68,15 @@
   box-shadow: 0 12px 35px #17203308;
 }
 
-.month-labels,
 .calendar-hint {
   display: flex;
-  justify-content: space-between;
   color: #9aa3b2;
   font-size: .67rem;
 }
 
-.month-labels { margin-bottom: 10px; }
 .calendar-hint { margin: 14px 0 0; justify-content: flex-start; }
-.heatmap-scroll { overflow-x: auto; padding: 48px 1px 3px; margin-top: -48px; }
-
-.heatmap {
-  min-width: 930px;
-  display: grid;
-  grid-template-rows: repeat(7, 13px);
-  grid-auto-flow: column;
-  grid-auto-columns: 13px;
-  gap: 5px;
-}
-
-.heat-cell {
-  position: relative;
-  width: 13px;
-  height: 13px;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  background: #edf0f4;
-}
-
-.heat-cell:hover { z-index: 3; box-shadow: 0 0 0 2px #9ba8ba; }
-.heat-cell.checked { background: var(--goal-color); }
-
-.heat-cell::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 9px);
-  width: max-content;
-  max-width: 260px;
-  padding: 8px 10px;
-  border-radius: 7px;
-  color: white;
-  background: #172033;
-  box-shadow: 0 6px 18px #17203330;
-  font-size: .68rem;
-  line-height: 1.35;
-  white-space: pre-wrap;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate(-50%, 4px);
-  transition: 120ms ease;
-}
-
-.heat-cell:hover::after,
-.heat-cell:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
 .calendar-empty { display: grid; place-items: center; }
-.empty-message { display: grid; justify-items: center; gap: 20px; color: #748096; font-size: .84rem; text-align: center; }
-.empty-message p { margin: 0; }
-.empty-grid { display: grid; grid-template-columns: repeat(14, 9px); gap: 4px; opacity: .75; }
-.empty-grid i { width: 9px; height: 9px; border-radius: 2px; background: #edf0f4; }
+.empty-message { margin: 0; color: #748096; font-size: .84rem; text-align: center; }
 
 @media (max-width: 650px) {
   .page-shell { width: calc(100% - 28px); padding: 28px 0 55px; }
