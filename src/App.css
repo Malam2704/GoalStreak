@@ -35,7 +35,7 @@
 }
 
 .calendar-section { margin-bottom: 48px; }
-.goals-section { width: min(690px, 100%); }
+.goals-section { width: 100%; margin-bottom: 48px; }
 
 .section-title {
   display: flex;

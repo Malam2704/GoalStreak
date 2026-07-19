@@ -89,18 +89,18 @@ function App() {
         <div><h1>GoalStreak</h1><p>A simple record of showing up.</p></div>
       </header>
 
-      <ActivityCalendar
-        entries={entries}
-        onSelectDate={openCheckIn}
-        selectedHabit={selectedHabit}
-      />
-
       <GoalList
         habits={habits}
         onAddEntry={openCheckIn}
         onAddGoal={() => setShowGoalForm(true)}
         onSelectGoal={setSelectedHabitId}
         selectedHabitId={selectedHabitId}
+      />
+
+      <ActivityCalendar
+        entries={entries}
+        onSelectDate={openCheckIn}
+        selectedHabit={selectedHabit}
       />
 
       {checkInHabit && (

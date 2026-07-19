@@ -17,7 +17,7 @@ export default function GoalList(props: GoalListProps) {
         <Button onClick={props.onAddGoal}>+ New goal</Button>
       </Stack>
 
-      <Stack spacing={1}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 1.25 }}>
         {props.habits.map((habit) => (
           <Paper key={habit.id} variant="outlined" sx={{ display: 'flex', overflow: 'hidden', borderColor: props.selectedHabitId === habit.id ? 'primary.main' : 'divider' }}>
             <Button fullWidth color="inherit" onClick={() => props.onSelectGoal(habit.id)} sx={{ justifyContent: 'flex-start', gap: 1.5, px: 2, py: 1.5 }}>
@@ -27,7 +27,7 @@ export default function GoalList(props: GoalListProps) {
             <IconButton onClick={() => props.onAddEntry(habit)} aria-label={`Add ${habit.name} entry`} sx={{ borderLeft: '1px solid', borderColor: 'divider', borderRadius: 0, px: 2 }}>+</IconButton>
           </Paper>
         ))}
-      </Stack>
+      </Box>
     </section>
   )
 }
