@@ -29,7 +29,7 @@ export default function CheckInModal(props: CheckInModalProps) {
       <DialogContent>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ alignItems: 'stretch' }}>
           <Stack sx={{ flex: '0 0 350px' }}><Typography variant="caption" sx={{ fontWeight: 700 }}>Date</Typography><DateCalendar value={dayjs(props.date)} maxDate={dayjs(today)} onChange={(date) => date && props.onDateChange(date.format('YYYY-MM-DD'))} sx={{ m: 0, mt: 1, border: '1px solid', borderColor: 'divider', borderRadius: 2 }} /></Stack>
-          <TextField label="Notes" multiline fullWidth value={props.note} onChange={(event) => props.onNoteChange(event.target.value)} placeholder={'Bench press — 3 × 8 at 135 lb\nSquats — 3 × 10 at 185 lb'} sx={{ '& .MuiInputBase-root': { height: '100%', alignItems: 'flex-start' }, '& textarea': { height: '100% !important' } }} />
+          <TextField label="Notes (optional)" multiline fullWidth value={props.note} onChange={(event) => props.onNoteChange(event.target.value)} sx={{ '& .MuiInputBase-root': { height: '100%', alignItems: 'flex-start' }, '& textarea': { height: '100% !important' } }} />
         </Stack>
       </DialogContent>
 

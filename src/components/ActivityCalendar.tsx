@@ -56,7 +56,7 @@ export default function ActivityCalendar({ selectedHabit, entries, onSelectDate 
                 })}
               </div>
             </div>
-            <p className="calendar-hint">Hover to see notes · Select any day to add or edit an entry</p>
+            <p className="calendar-hint">Select any day to add or edit an entry</p>
           </>
         ) : (
           <div className="empty-message">
