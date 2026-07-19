@@ -5,7 +5,7 @@ GoalStreak works locally out of the box. To add Supabase sync:
 1. Create a Supabase project.
 2. Enable **Anonymous Sign-Ins** under Authentication > Providers > Anonymous.
 3. Paste [`supabase/schema.sql`](supabase/schema.sql) into the Supabase SQL Editor and run it.
-4. Copy `.env.example` to `.env.local` and add the project URL and publishable/anon key.
+4. Copy `.env.example` to `.env.local` and add the project URL and publishable key.
 5. Restart `npm run dev`.
 
 On the first connection, existing localStorage habits and check-ins are uploaded
