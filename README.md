@@ -1,4 +1,18 @@
-# React + TypeScript + Vite
+# GoalStreak
+
+GoalStreak works locally out of the box. To add Supabase sync:
+
+1. Create a Supabase project.
+2. Enable **Anonymous Sign-Ins** under Authentication > Providers > Anonymous.
+3. Paste [`supabase/schema.sql`](supabase/schema.sql) into the Supabase SQL Editor and run it.
+4. Copy `.env.example` to `.env.local` and add the project URL and publishable/anon key.
+5. Restart `npm run dev`.
+
+On the first connection, existing localStorage habits and check-ins are uploaded
+to the anonymous Supabase account. Without environment variables—or if sync
+fails—the app continues to use localStorage.
+
+## Vite notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

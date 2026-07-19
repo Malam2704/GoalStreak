@@ -5,6 +5,7 @@ import AddGoalForm from './components/AddGoalFormPanel'
 import CheckInModal from './components/CheckInModal'
 import GoalList from './components/GoalList'
 import { loadCheckIns, loadHabits, saveCheckIns, saveHabits } from './data/localStorage'
+import { deleteCheckIn, syncWithSupabase, upsertCheckIn, upsertHabit } from './data/supabase'
 import type { CheckIn, Habit, NewHabit } from './types'
 import { today } from './utils/date'
 
@@ -16,6 +17,20 @@ function App() {
   const [checkInDate, setCheckInDate] = useState(today)
   const [note, setNote] = useState('')
   const [showGoalForm, setShowGoalForm] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    syncWithSupabase(loadHabits(), loadCheckIns())
+      .then((remote) => {
+        if (!active || !remote) return
+        setHabits(remote.habits)
+        setCheckIns(remote.checkIns)
+      })
+      .catch((error) => console.error('Supabase sync failed; using local data.', error))
+
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     saveHabits(habits)
@@ -60,14 +75,23 @@ function App() {
     }
 
     setCheckIns([...otherCheckIns, newCheckIn])
+    void upsertCheckIn(newCheckIn).catch((error) => {
+      console.error('Could not save check-in to Supabase.', error)
+    })
     setSelectedHabitId(checkInHabitId)
     setCheckInHabitId(null)
   }
 
   function removeCheckIn() {
+    if (!checkInHabitId) return
+    const habitId = checkInHabitId
+    const date = checkInDate
     setCheckIns((current) => current.filter((entry) => {
-      return entry.habitId !== checkInHabitId || entry.date !== checkInDate
+      return entry.habitId !== habitId || entry.date !== date
     }))
+    void deleteCheckIn(habitId, date).catch((error) => {
+      console.error('Could not remove check-in from Supabase.', error)
+    })
     setCheckInHabitId(null)
   }
 
@@ -79,6 +103,9 @@ function App() {
     }
 
     setHabits((current) => [...current, newHabit])
+    void upsertHabit(newHabit).catch((error) => {
+      console.error('Could not save habit to Supabase.', error)
+    })
     setShowGoalForm(false)
   }
 
