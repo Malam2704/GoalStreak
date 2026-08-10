@@ -1,51 +1,30 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { Alert, LinearProgress, Snackbar } from '@mui/material'
 import './App.css'
 import ActivityCalendar from './components/ActivityCalendar'
 import AddGoalForm from './components/AddGoalFormPanel'
+import AuthControls from './components/AuthControls'
 import CheckInModal from './components/CheckInModal'
 import GoalList from './components/GoalList'
-import { loadCheckIns, loadHabits, saveCheckIns, saveHabits } from './data/localStorage'
-import { deleteCheckIn, syncWithSupabase, upsertCheckIn, upsertHabit } from './data/supabase'
+import { isSupabaseConfigured } from './data/supabaseClient'
+import useGoalData from './hooks/useGoalData'
 import type { CheckIn, Habit, NewHabit } from './types'
 import { today } from './utils/date'
 
 function App() {
-  const [habits, setHabits] = useState<Habit[]>(loadHabits)
-  const [checkIns, setCheckIns] = useState<CheckIn[]>(loadCheckIns)
+  const goalData = useGoalData()
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null)
   const [checkInHabitId, setCheckInHabitId] = useState<string | null>(null)
   const [checkInDate, setCheckInDate] = useState(today)
   const [note, setNote] = useState('')
   const [showGoalForm, setShowGoalForm] = useState(false)
 
-  useEffect(() => {
-    let active = true
-
-    syncWithSupabase(loadHabits(), loadCheckIns())
-      .then((remote) => {
-        if (!active || !remote) return
-        setHabits(remote.habits)
-        setCheckIns(remote.checkIns)
-      })
-      .catch((error) => console.error('Supabase sync failed; using local data.', error))
-
-    return () => { active = false }
-  }, [])
-
-  useEffect(() => {
-    saveHabits(habits)
-  }, [habits])
-
-  useEffect(() => {
-    saveCheckIns(checkIns)
-  }, [checkIns])
-
-  const selectedHabit = habits.find((habit) => habit.id === selectedHabitId)
-  const checkInHabit = habits.find((habit) => habit.id === checkInHabitId)
-
-  const entries = useMemo(() => {
-    return new Map(checkIns.map((entry) => [`${entry.habitId}:${entry.date}`, entry]))
-  }, [checkIns])
+  const selectedHabit = goalData.habits.find((habit) => habit.id === selectedHabitId)
+  const checkInHabit = goalData.habits.find((habit) => habit.id === checkInHabitId)
+  const entries = useMemo(
+    () => new Map(goalData.checkIns.map((entry) => [`${entry.habitId}:${entry.date}`, entry])),
+    [goalData.checkIns],
+  )
 
   function openCheckIn(habit: Habit, date = today) {
     const existingEntry = entries.get(`${habit.id}:${date}`)
@@ -59,78 +38,81 @@ function App() {
     setNote(entries.get(`${checkInHabitId}:${date}`)?.note ?? '')
   }
 
-  function saveCheckIn(event: FormEvent) {
+  function submitCheckIn(event: FormEvent) {
     event.preventDefault()
     if (!checkInHabitId) return
 
-    const otherCheckIns = checkIns.filter((entry) => {
-      return entry.habitId !== checkInHabitId || entry.date !== checkInDate
-    })
-
-    const newCheckIn: CheckIn = {
+    const checkIn: CheckIn = {
       habitId: checkInHabitId,
       date: checkInDate,
       note: note.trim(),
       completedAt: new Date().toISOString(),
     }
 
-    setCheckIns([...otherCheckIns, newCheckIn])
-    void upsertCheckIn(newCheckIn).catch((error) => {
-      console.error('Could not save check-in to Supabase.', error)
-    })
+    goalData.saveCheckIn(checkIn)
     setSelectedHabitId(checkInHabitId)
     setCheckInHabitId(null)
   }
 
-  function removeCheckIn() {
+  function removeCurrentCheckIn() {
     if (!checkInHabitId) return
-    const habitId = checkInHabitId
-    const date = checkInDate
-    setCheckIns((current) => current.filter((entry) => {
-      return entry.habitId !== habitId || entry.date !== date
-    }))
-    void deleteCheckIn(habitId, date).catch((error) => {
-      console.error('Could not remove check-in from Supabase.', error)
-    })
+    goalData.removeCheckIn(checkInHabitId, checkInDate)
     setCheckInHabitId(null)
   }
 
   function addHabit(input: NewHabit) {
-    const newHabit: Habit = {
-      ...input,
-      id: crypto.randomUUID(),
-      createdAt: today,
-    }
-
-    setHabits((current) => [...current, newHabit])
-    void upsertHabit(newHabit).catch((error) => {
-      console.error('Could not save habit to Supabase.', error)
-    })
+    goalData.addHabit(input)
     setShowGoalForm(false)
   }
 
   return (
     <main className="page-shell">
       <header className="page-header">
-        <div className="brand-mark">G</div>
-        <div><h1>GoalStreak</h1><p>A simple record of showing up.</p></div>
+        <div className="brand-lockup">
+          <div className="brand-mark">G</div>
+          <div><h1>GoalStreak</h1><p>A simple record of showing up.</p></div>
+        </div>
+
+        <AuthControls
+          configured={isSupabaseConfigured}
+          loading={!goalData.authReady || goalData.authBusy}
+          onSignIn={() => void goalData.connectGoogle()}
+          onSignOut={() => {
+            setSelectedHabitId(null)
+            setCheckInHabitId(null)
+            setShowGoalForm(false)
+            void goalData.disconnectAccount()
+          }}
+          user={goalData.session?.user.is_anonymous ? null : goalData.session?.user ?? null}
+        />
       </header>
 
-      <GoalList
-        habits={habits}
-        onAddEntry={openCheckIn}
-        onAddGoal={() => setShowGoalForm(true)}
-        onSelectGoal={setSelectedHabitId}
-        selectedHabitId={selectedHabitId}
-      />
+      {!goalData.dataReady && <LinearProgress className="sync-progress" />}
+      {goalData.errorMessage && (
+        <Alert severity="error" onClose={() => goalData.setErrorMessage('')} sx={{ mb: 3 }}>
+          {goalData.errorMessage}
+        </Alert>
+      )}
 
-      <ActivityCalendar
-        entries={entries}
-        onSelectDate={openCheckIn}
-        selectedHabit={selectedHabit}
-      />
+      {goalData.dataReady && (
+        <>
+          <GoalList
+            habits={goalData.habits}
+            onAddEntry={openCheckIn}
+            onAddGoal={() => setShowGoalForm(true)}
+            onSelectGoal={setSelectedHabitId}
+            selectedHabitId={selectedHabitId}
+          />
 
-      {checkInHabit && (
+          <ActivityCalendar
+            entries={entries}
+            onSelectDate={openCheckIn}
+            selectedHabit={selectedHabit}
+          />
+        </>
+      )}
+
+      {goalData.dataReady && checkInHabit && (
         <CheckInModal
           date={checkInDate}
           habit={checkInHabit}
@@ -139,14 +121,21 @@ function App() {
           onCancel={() => setCheckInHabitId(null)}
           onDateChange={changeCheckInDate}
           onNoteChange={setNote}
-          onRemove={removeCheckIn}
-          onSave={saveCheckIn}
+          onRemove={removeCurrentCheckIn}
+          onSave={submitCheckIn}
         />
       )}
 
-      {showGoalForm && (
+      {goalData.dataReady && showGoalForm && (
         <AddGoalForm onAdd={addHabit} onCancel={() => setShowGoalForm(false)} />
       )}
+
+      <Snackbar
+        autoHideDuration={5000}
+        message={goalData.successMessage}
+        onClose={() => goalData.setSuccessMessage('')}
+        open={Boolean(goalData.successMessage)}
+      />
     </main>
   )
 }

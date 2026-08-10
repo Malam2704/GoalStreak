@@ -1,87 +1,91 @@
 # GoalStreak
 
-GoalStreak works locally out of the box. To add Supabase sync:
+GoalStreak is a React app for recording dated goal check-ins. It works with
+local browser storage by default and can use Supabase plus Google OAuth to sync
+one account across devices.
 
-1. Create a Supabase project.
-2. Enable **Anonymous Sign-Ins** under Authentication > Providers > Anonymous.
-3. Paste [`supabase/schema.sql`](supabase/schema.sql) into the Supabase SQL Editor and run it.
-4. Copy `.env.example` to `.env.local` and add the project URL and publishable key.
-5. Restart `npm run dev`.
+## Run locally
 
-On the first connection, existing localStorage habits and check-ins are uploaded
-to the anonymous Supabase account. Without environment variables—or if sync
-fails—the app continues to use localStorage.
-
-## Vite notes
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Without Supabase environment variables, the header shows **Local only** and all
+data remains in this browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Add Supabase and Google login
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 1. Create the database
+
+1. Create a project at [Supabase](https://supabase.com/dashboard).
+2. Open **SQL Editor**, paste [`supabase/schema.sql`](supabase/schema.sql), and
+   run it.
+
+The schema enables Row Level Security. Every goal and check-in has a `user_id`,
+and authenticated users can only access rows whose `user_id` matches their
+Supabase Auth ID.
+
+### 2. Configure Google OAuth
+
+1. In [Google Auth Platform](https://console.cloud.google.com/auth), create a
+   web OAuth client.
+2. Add `http://localhost:5173` and your production site as authorized
+   JavaScript origins.
+3. Add the Supabase callback URL shown under **Supabase > Authentication >
+   Providers > Google** as an authorized redirect URI. It looks like:
+
+   ```text
+   https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback
+   ```
+
+4. In Supabase, enable the Google provider and enter Google's client ID and
+   client secret.
+5. Under **Authentication > URL Configuration**, set your production URL as the
+   Site URL. Add `http://localhost:5173/**` and your production URL to the
+   redirect allow list.
+6. Under **Authentication > Settings**, enable manual identity linking while
+   migrating anyone who used the earlier anonymous-auth version of this app.
+
+The app no longer creates anonymous users. Manual linking is only retained so
+an existing anonymous session can be upgraded to Google without changing its
+user ID or losing its rows.
+
+### 3. Add local environment variables
+
+Copy `.env.example` to `.env.local` and use the values from **Supabase > Project
+Settings > API**:
+
+```bash
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+```
+
+Only use the publishable key in this frontend. Never put a Supabase secret or
+service-role key in a `VITE_` variable.
+
+Restart `npm run dev`, then select **Sign in with Google**.
+
+## What happens to existing browser data?
+
+On the first successful account connection, local goals and check-ins are
+uploaded under that Supabase user ID. The unclaimed local copy is removed only
+after the upload succeeds. The app then keeps a per-user browser cache for
+offline fallback, while Supabase remains the source used across devices.
+
+## Deploy with Vercel
+
+1. Import this repository into Vercel using the repository root as the project
+   directory.
+2. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` to the Vercel
+   project environment variables.
+3. Deploy once and copy the production URL.
+4. Add that URL to the Supabase Site URL and redirect allow list, and to the
+   Google OAuth client's authorized JavaScript origins.
+
+Useful checks before deployment:
+
+```bash
+npm run lint
+npm run build
 ```

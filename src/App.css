@@ -7,8 +7,15 @@
 .page-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 13px;
   margin-bottom: 50px;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 13px;
 }
 
 .brand-mark {
@@ -77,10 +84,12 @@
 .calendar-hint { margin: 14px 0 0; justify-content: flex-start; }
 .calendar-empty { display: grid; place-items: center; }
 .empty-message { margin: 0; color: #748096; font-size: .84rem; text-align: center; }
+.sync-progress { margin-bottom: 32px; }
 
 @media (max-width: 650px) {
   .page-shell { width: calc(100% - 28px); padding: 28px 0 55px; }
-  .page-header { margin-bottom: 36px; }
+  .page-header { align-items: flex-start; margin-bottom: 36px; }
+  .account-name { display: none; }
   .calendar-section { margin-bottom: 38px; }
   .calendar-panel { min-height: 210px; padding: 18px; }
 }

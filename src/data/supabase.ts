@@ -1,8 +1,9 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { CheckIn, Habit } from '../types'
+import { supabase } from './supabaseClient'
 
 type HabitRow = {
   id: string
+  user_id: string
   name: string
   color: string
   created_at: string
@@ -10,108 +11,105 @@ type HabitRow = {
 
 type CheckInRow = {
   habit_id: string
+  user_id: string
   date: string
   note: string
   completed_at: string
 }
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-  ?? import.meta.env.VITE_SUPABASE_ANON_KEY
-const client = url && key ? createClient(url, key) : null
-let authentication: Promise<SupabaseClient | null> | null = null
-
-async function startAuthentication(): Promise<SupabaseClient | null> {
-  if (!client) return null
-
-  const { data, error } = await client.auth.getSession()
-  if (error) throw error
-  if (!data.session) {
-    const { error: signInError } = await client.auth.signInAnonymously()
-    if (signInError) throw signInError
+function toHabitRow(habit: Habit, userId: string): HabitRow {
+  return {
+    id: habit.id,
+    user_id: userId,
+    name: habit.name,
+    color: habit.color,
+    created_at: habit.createdAt,
   }
-
-  return client
 }
 
-function authenticatedClient() {
-  authentication ??= startAuthentication().catch((error) => {
-    authentication = null
-    throw error
-  })
-  return authentication
-}
-
-function habitRow(habit: Habit) {
-  return { id: habit.id, name: habit.name, color: habit.color, created_at: habit.createdAt }
-}
-
-function checkInRow(checkIn: CheckIn) {
+function toCheckInRow(checkIn: CheckIn, userId: string): CheckInRow {
   return {
     habit_id: checkIn.habitId,
+    user_id: userId,
     date: checkIn.date,
     note: checkIn.note ?? '',
     completed_at: checkIn.completedAt,
   }
 }
 
-export async function syncWithSupabase(localHabits: Habit[], localCheckIns: CheckIn[]) {
-  const supabase = await authenticatedClient()
-  if (!supabase) return null
+function toHabit(row: HabitRow): Habit {
+  return {
+    id: row.id,
+    name: row.name,
+    color: row.color,
+    createdAt: row.created_at,
+  }
+}
 
-  if (localHabits.length) {
-    const { error } = await supabase.from('habits').upsert(localHabits.map(habitRow))
+function toCheckIn(row: CheckInRow): CheckIn {
+  return {
+    habitId: row.habit_id,
+    date: row.date,
+    note: row.note,
+    completedAt: row.completed_at,
+  }
+}
+
+export async function syncWithSupabase(
+  userId: string,
+  localHabits: Habit[],
+  localCheckIns: CheckIn[],
+) {
+  if (!supabase) throw new Error('Supabase is not configured yet.')
+
+  if (localHabits.length > 0) {
+    const { error } = await supabase.from('habits').upsert(
+      localHabits.map((habit) => toHabitRow(habit, userId)),
+    )
     if (error) throw error
   }
-  if (localCheckIns.length) {
-    const { error } = await supabase.from('check_ins').upsert(localCheckIns.map(checkInRow))
+
+  if (localCheckIns.length > 0) {
+    const { error } = await supabase.from('check_ins').upsert(
+      localCheckIns.map((checkIn) => toCheckInRow(checkIn, userId)),
+    )
     if (error) throw error
   }
 
   const [habitsResult, checkInsResult] = await Promise.all([
-    supabase.from('habits').select('id, name, color, created_at').order('created_at'),
-    supabase.from('check_ins').select('habit_id, date, note, completed_at').order('date'),
+    supabase.from('habits').select('id, user_id, name, color, created_at').order('created_at'),
+    supabase.from('check_ins').select('habit_id, user_id, date, note, completed_at').order('date'),
   ])
+
   if (habitsResult.error) throw habitsResult.error
   if (checkInsResult.error) throw checkInsResult.error
 
   return {
-    habits: (habitsResult.data as HabitRow[]).map((row) => ({
-      id: row.id,
-      name: row.name,
-      color: row.color,
-      createdAt: row.created_at,
-    })),
-    checkIns: (checkInsResult.data as CheckInRow[]).map((row) => ({
-      habitId: row.habit_id,
-      date: row.date,
-      note: row.note,
-      completedAt: row.completed_at,
-    })),
+    habits: (habitsResult.data as HabitRow[]).map(toHabit),
+    checkIns: (checkInsResult.data as CheckInRow[]).map(toCheckIn),
   }
 }
 
-export async function upsertHabit(habit: Habit) {
-  const supabase = await authenticatedClient()
+export async function upsertHabit(userId: string, habit: Habit) {
   if (!supabase) return
-  const { error } = await supabase.from('habits').upsert(habitRow(habit))
+  const { error } = await supabase.from('habits').upsert(toHabitRow(habit, userId))
   if (error) throw error
 }
 
-export async function upsertCheckIn(checkIn: CheckIn) {
-  const supabase = await authenticatedClient()
+export async function upsertCheckIn(userId: string, checkIn: CheckIn) {
   if (!supabase) return
-  const { error } = await supabase.from('check_ins').upsert(checkInRow(checkIn))
+  const { error } = await supabase.from('check_ins').upsert(toCheckInRow(checkIn, userId))
   if (error) throw error
 }
 
-export async function deleteCheckIn(habitId: string, date: string) {
-  const supabase = await authenticatedClient()
+export async function deleteCheckIn(userId: string, habitId: string, date: string) {
   if (!supabase) return
   const { error } = await supabase
     .from('check_ins')
     .delete()
+    .eq('user_id', userId)
     .eq('habit_id', habitId)
     .eq('date', date)
+
   if (error) throw error
 }

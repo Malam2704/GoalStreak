@@ -34,6 +34,9 @@ create index if not exists check_ins_user_date_idx
 alter table public.habits enable row level security;
 alter table public.check_ins enable row level security;
 
+revoke all on public.habits, public.check_ins from anon;
+grant select, insert, update, delete on public.habits, public.check_ins to authenticated;
+
 drop policy if exists "habits_select_own" on public.habits;
 drop policy if exists "habits_insert_own" on public.habits;
 drop policy if exists "habits_update_own" on public.habits;
@@ -44,22 +47,21 @@ drop policy if exists "check_ins_update_own" on public.check_ins;
 drop policy if exists "check_ins_delete_own" on public.check_ins;
 
 create policy "habits_select_own" on public.habits
-  for select to authenticated using (auth.uid() = user_id);
+  for select to authenticated using ((select auth.uid()) = user_id);
 create policy "habits_insert_own" on public.habits
-  for insert to authenticated with check (auth.uid() = user_id);
+  for insert to authenticated with check ((select auth.uid()) = user_id);
 create policy "habits_update_own" on public.habits
-  for update to authenticated using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for update to authenticated using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 create policy "habits_delete_own" on public.habits
-  for delete to authenticated using (auth.uid() = user_id);
+  for delete to authenticated using ((select auth.uid()) = user_id);
 
 create policy "check_ins_select_own" on public.check_ins
-  for select to authenticated using (auth.uid() = user_id);
+  for select to authenticated using ((select auth.uid()) = user_id);
 create policy "check_ins_insert_own" on public.check_ins
-  for insert to authenticated with check (auth.uid() = user_id);
+  for insert to authenticated with check ((select auth.uid()) = user_id);
 create policy "check_ins_update_own" on public.check_ins
-  for update to authenticated using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for update to authenticated using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 create policy "check_ins_delete_own" on public.check_ins
-  for delete to authenticated using (auth.uid() = user_id);
-
+  for delete to authenticated using ((select auth.uid()) = user_id);
