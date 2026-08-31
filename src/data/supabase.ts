@@ -55,26 +55,8 @@ function toCheckIn(row: CheckInRow): CheckIn {
   }
 }
 
-export async function syncWithSupabase(
-  userId: string,
-  localHabits: Habit[],
-  localCheckIns: CheckIn[],
-) {
+export async function loadSupabaseData() {
   if (!supabase) throw new Error('Supabase is not configured yet.')
-
-  if (localHabits.length > 0) {
-    const { error } = await supabase.from('habits').upsert(
-      localHabits.map((habit) => toHabitRow(habit, userId)),
-    )
-    if (error) throw error
-  }
-
-  if (localCheckIns.length > 0) {
-    const { error } = await supabase.from('check_ins').upsert(
-      localCheckIns.map((checkIn) => toCheckInRow(checkIn, userId)),
-    )
-    if (error) throw error
-  }
 
   const [habitsResult, checkInsResult] = await Promise.all([
     supabase.from('habits').select('id, user_id, name, color, created_at').order('created_at'),

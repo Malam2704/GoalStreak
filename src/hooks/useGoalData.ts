@@ -1,14 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { getCurrentSession, signInWithGoogle, signOut, subscribeToAuthChanges } from '../data/auth'
-import {
-  clearGuestData,
-  loadCheckIns,
-  loadHabits,
-  saveCheckIns,
-  saveHabits,
-} from '../data/localStorage'
-import { deleteCheckIn, syncWithSupabase, upsertCheckIn, upsertHabit } from '../data/supabase'
+import { loadCheckIns, loadHabits, saveCheckIns, saveHabits } from '../data/localStorage'
+import { deleteCheckIn, loadSupabaseData, upsertCheckIn, upsertHabit } from '../data/supabase'
 import type { CheckIn, Habit, NewHabit } from '../types'
 import { today } from '../utils/date'
 
@@ -22,6 +16,8 @@ export default function useGoalData() {
   const [storageUserId, setStorageUserId] = useState<string | null | undefined>(undefined)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+
+  const userId = session && !session.user.is_anonymous ? session.user.id : null
 
   useEffect(() => {
     let active = true
@@ -40,8 +36,7 @@ export default function useGoalData() {
         }
       })
 
-    const unsubscribe = subscribeToAuthChanges((nextSession) => {
-      setDataReady(false)
+    const unsubscribe = subscribeToAuthChanges((_event, nextSession) => {
       setSession(nextSession)
       setAuthReady(true)
       setAuthBusy(false)
@@ -57,7 +52,6 @@ export default function useGoalData() {
     if (!authReady) return
 
     let active = true
-    const userId = session?.user.id
 
     async function loadData() {
       setDataReady(false)
@@ -74,23 +68,15 @@ export default function useGoalData() {
 
       const cachedHabits = loadHabits(userId)
       const cachedCheckIns = loadCheckIns(userId)
-      const guestHabits = loadHabits()
-      const guestCheckIns = loadCheckIns()
-      const hasGuestData = guestHabits.length > 0 || guestCheckIns.length > 0
 
       try {
-        const cloudData = await syncWithSupabase(userId, guestHabits, guestCheckIns)
+        const cloudData = await loadSupabaseData()
         if (!active) return
 
-        clearGuestData()
         setHabits(cloudData.habits)
         setCheckIns(cloudData.checkIns)
         setStorageUserId(userId)
         setDataReady(true)
-
-        if (hasGuestData && !session?.user.is_anonymous) {
-          setSuccessMessage('Your local data is now connected to your Google account.')
-        }
       } catch (error) {
         if (!active) return
 
@@ -99,13 +85,13 @@ export default function useGoalData() {
         setCheckIns(cachedCheckIns)
         setStorageUserId(userId)
         setDataReady(true)
-        setErrorMessage(`Cloud sync failed. Using this device's cache: ${message}`)
+        setErrorMessage(`Cloud sync failed. Showing this device's saved copy: ${message}`)
       }
     }
 
     void loadData()
     return () => { active = false }
-  }, [authReady, session?.user.id, session?.user.is_anonymous])
+  }, [authReady, userId])
 
   useEffect(() => {
     if (dataReady && storageUserId !== undefined) {
@@ -121,7 +107,7 @@ export default function useGoalData() {
 
   function reportCloudError(action: string, error: unknown) {
     const detail = error instanceof Error ? error.message : 'Unknown error'
-    setErrorMessage(`${action} was saved locally but not synced: ${detail}`)
+    setErrorMessage(`${action} was saved on this device but not synced: ${detail}`)
   }
 
   async function connectGoogle() {
@@ -131,8 +117,9 @@ export default function useGoalData() {
     try {
       await signInWithGoogle()
     } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Unknown error'
       setAuthBusy(false)
-      reportCloudError('Google sign-in', error)
+      setErrorMessage(`Google sign-in failed: ${detail}`)
     }
   }
 
@@ -143,8 +130,9 @@ export default function useGoalData() {
     try {
       await signOut()
     } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Unknown error'
       setAuthBusy(false)
-      reportCloudError('Sign out', error)
+      setErrorMessage(`Sign out failed: ${detail}`)
     }
   }
 
@@ -156,8 +144,8 @@ export default function useGoalData() {
     }
 
     setHabits((current) => [...current, habit])
-    if (session) {
-      void upsertHabit(session.user.id, habit)
+    if (userId) {
+      void upsertHabit(userId, habit)
         .catch((error) => reportCloudError('Goal', error))
     }
   }
@@ -170,8 +158,8 @@ export default function useGoalData() {
       checkIn,
     ])
 
-    if (session) {
-      void upsertCheckIn(session.user.id, checkIn)
+    if (userId) {
+      void upsertCheckIn(userId, checkIn)
         .catch((error) => reportCloudError('Check-in', error))
     }
   }
@@ -181,8 +169,8 @@ export default function useGoalData() {
       entry.habitId !== habitId || entry.date !== date
     )))
 
-    if (session) {
-      void deleteCheckIn(session.user.id, habitId, date)
+    if (userId) {
+      void deleteCheckIn(userId, habitId, date)
         .catch((error) => reportCloudError('Check-in removal', error))
     }
   }

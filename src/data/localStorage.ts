@@ -31,8 +31,3 @@ export function loadCheckIns(userId?: string | null) {
 export function saveCheckIns(checkIns: CheckIn[], userId?: string | null) {
   window.localStorage.setItem(keyFor(GUEST_CHECK_INS_KEY, userId), JSON.stringify(checkIns))
 }
-
-export function clearGuestData() {
-  window.localStorage.removeItem(GUEST_HABITS_KEY)
-  window.localStorage.removeItem(GUEST_CHECK_INS_KEY)
-}

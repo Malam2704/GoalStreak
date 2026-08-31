@@ -44,12 +44,11 @@ Supabase Auth ID.
 5. Under **Authentication > URL Configuration**, set your production URL as the
    Site URL. Add `http://localhost:5173/**` and your production URL to the
    redirect allow list.
-6. Under **Authentication > Settings**, enable manual identity linking while
-   migrating anyone who used the earlier anonymous-auth version of this app.
+6. If the Google app is still in **Testing**, add your Google account under
+   **Google Auth Platform > Audience > Test users**.
 
-The app no longer creates anonymous users. Manual linking is only retained so
-an existing anonymous session can be upgraded to Google without changing its
-user ID or losing its rows.
+The app uses a normal Google OAuth sign-in. Manual identity linking and
+anonymous sign-in are not required.
 
 ### 3. Add local environment variables
 
@@ -66,12 +65,12 @@ service-role key in a `VITE_` variable.
 
 Restart `npm run dev`, then select **Sign in with Google**.
 
-## What happens to existing browser data?
+## Where is data stored?
 
-On the first successful account connection, local goals and check-ins are
-uploaded under that Supabase user ID. The unclaimed local copy is removed only
-after the upload succeeds. The app then keeps a per-user browser cache for
-offline fallback, while Supabase remains the source used across devices.
+Before sign-in, goals and check-ins stay in this browser. After Google sign-in,
+new goals and check-ins are stored in Supabase with the signed-in user's ID.
+The app also keeps a per-user browser cache as an offline fallback. Local-only
+data is intentionally not uploaded automatically.
 
 ## Deploy with Vercel
 
